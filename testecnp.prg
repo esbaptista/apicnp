@@ -1,10 +1,10 @@
 //================================================================================
 // ARQUIVO: cnp_test_run.prg
 // DESCRIÇÃO: Programa principal para testar as funções CNP usando RUN('curl...').
-// DADOS: DADOS E GTIN DO CLIENTE INSERIDOS.
 //================================================================================
 
 #include "hbclass.ch"
+#include "fileio.ch" 
 
 #define INI_FILE          "cnp_config.ini"
 
@@ -14,29 +14,25 @@ EXTERNAL CNP_IniCreate, CNP_TokenGenerate, CNP_ConsultarProduto, CNP_CadastrarPr
 PROCEDURE Main()
     
     // ===========================================================================
-    // *** 1. DADOS DE ACESSO E GTIN FORNECIDOS ***
+    // *** 1. DECLARAÇÃO ESTREITA DE TODAS AS VARIÁVEIS LOCAIS NO TOPO ***
     // ===========================================================================
     LOCAL cClientID     := "5e97e991-dab4-412d-b1e3-b27d87ff6291"
     LOCAL cClientSecret := "3b505d72-8a10-4bdb-ab06-167d3d7de5f3"
     LOCAL cUserCNP      := "elton@cipec.com.br"
     LOCAL cPassCNP      := "Beleza@2010!"              
-    // GTIN de consulta (o primeiro da sua lista)
-    LOCAL cGtinTest     := "7909053000162"
-    
-    // Outros GTINs fornecidos (para referência):
-    // 7909053000223, 7909053002999, 7909053003293, 7909053003750, 
-    // 7909053003903, 7909053004153, 7909053004382, 7909053004641, 7909053004771
-    // Altere o cGtinTest acima para testar outros.
-    // ===========================================================================
+    LOCAL cGtinTest     := "7899999900971" //7898942589065" // 7909053000162"
+    LOCAL cCadNumber    := "00610742000139"  
     
     LOCAL cToken
     LOCAL nExpiryTime
-    LOCAL nCurrentTime := CNP_GetTimeStamp()
-    LOCAL cConsultResultJson := ""
-    LOCAL cProductJson       := ""
-
+    LOCAL nCurrentTime 
+    LOCAL cConsultResultJson 
+    LOCAL cProductJson    
+    LOCAL hFile 
+    // ===========================================================================
+    
     SET CENTURY ON
-    SET DATE TO ANSI // Garante formato yyyy.mm.dd
+    SET DATE TO ANSI 
 
     CLS
     ? "========================================================"
@@ -44,13 +40,27 @@ PROCEDURE Main()
     ? "========================================================"
     
     // --- PASSO 1: Configuração Inicial e Criação/Reset do INI ---
-    ? "1. Gerando arquivo de configuração INI..."
-    IF CNP_IniCreate( cClientID, cClientSecret, cUserCNP, cPassCNP )
-        ? "   [OK] Arquivo '" + INI_FILE + "' criado/atualizado."
+    ? "1. Verificando/Gerando arquivo de configuração INI..."
+    
+    // Substituição de FExists por FOpen
+    hFile := FOpen( INI_FILE, FO_READ )
+    
+    IF hFile <= 0 
+        // Arquivo NÃO existe ou erro. Chama a criação.
+        IF CNP_IniCreate( cClientID, cClientSecret, cUserCNP, cPassCNP )
+            ? "   [OK] Arquivo '" + INI_FILE + "' criado com configurações iniciais."
+        ELSE
+            ? "   [ERRO] Não foi possível criar o arquivo INI."
+            RETURN
+        ENDIF
     ELSE
-        ? "   [ERRO] Não foi possível criar/atualizar o arquivo INI."
-        RETURN
+        // Arquivo existe. Fecha-o imediatamente.
+        FClose( hFile ) 
+        ? "   [OK] Arquivo '" + INI_FILE + "' já existe. Mantendo configurações."
     ENDIF
+
+    nCurrentTime := CNP_GetTimeStamp() 
+
 
     // --- PASSO 2: Verificação e Geração do Token ---
     ?
@@ -66,7 +76,7 @@ PROCEDURE Main()
         IF ! Empty( cToken )
             ? "   [OK] Token Gerado com SUCESSO. (Salvo em: " + INI_FILE + ")"
         ELSE
-            ? "   [FALHA] Não foi possível gerar o token. Verifique as credenciais e o ambiente cURL."
+            ? "   [FALHA] Não foi possível gerar o token. Verifique as credenciais."
             RETURN
         ENDIF
     ELSE
@@ -76,6 +86,7 @@ PROCEDURE Main()
     // --- PASSO 3: Consulta de Produto ---
     ?
     ? "3. Consultando Produto (GTIN: " + cGtinTest + ")..."
+
     cConsultResultJson := CNP_ConsultarProduto( cGtinTest )
     
     IF ! Empty( cConsultResultJson )
@@ -85,17 +96,16 @@ PROCEDURE Main()
         
         ? "   GTIN Status Code: " + CNP_ExtractJsonValue( cConsultResultJson, "gtinStatusCode" )
     ELSE
-        ? "   [FALHA] Consulta de produto falhou. (Pode ser 404 - GTIN não encontrado ou outro erro)"
+        ? "   [FALHA] Consulta de produto falhou."
     ENDIF
 
     // --- PASSO 4: Cadastro de Produto (Simulação Simplificada) ---
     ?
     ? "4. Cadastrando Novo Produto (Simulação Simplificada)..."
     
-    // ATENÇÃO: SUBSTITUA 'SEU_NUMERO_CAD_AQUI' PELO CAD (CNPJ) CORRETO DA SUA EMPRESA.
     cProductJson := '{' + ;
                      '"company": {' + ;
-                        '"cad": "SEU_NUMERO_CAD_AQUI"' + ; 
+                        '"cad": "' + cCadNumber + '"' + ; 
                      '},' + ;
                      '"gtinStatusCode": "INACTIVE",' + ;
                      '"gs1TradeItemIdentificationKey": {' + ;
